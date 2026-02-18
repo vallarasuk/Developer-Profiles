@@ -12,104 +12,25 @@ const GIF_WIDTH = 640;
 const GIF_HEIGHT = 360;
 
 async function closeModals(page) {
-  console.log("Attempting to clear modals...");
+  console.log("Attempting to clear modals (v2.0)...");
   try {
-    // Press Escape as a first broad attempt
+    // 1. Press Escape
     await page.keyboard.press("Escape");
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    // Common selectors for close buttons/icons and consent buttons
-    const closeSelectors = [
-      '[aria-label*="close" i]',
-      '[class*="close" i]',
-      '[id*="close" i]',
-      ".modal-close",
-      ".close-button",
-      ".close-icon",
-      // Text-based selectors (handled via evaluate for better reliability)
-      "button",
-      'a[role="button"]',
-    ];
-
-    const closeTextPatterns = [
-      /close/i,
-      /got it/i,
-      /accept/i,
-      /dismiss/i,
-      /agree/i,
-      /allow/i,
-      /ok/i,
-      /consent/i,
-      /i agree/i,
-      /accept all/i,
-    ];
-
-    await page.evaluate(
-      (selectors, patterns) => {
-        const isVisible = (el) => {
-          const style = window.getComputedStyle(el);
-          return (
-            style &&
-            style.display !== "none" &&
-            style.visibility !== "hidden" &&
-            el.offsetWidth > 0
-          );
-        };
-
-        const tryClick = (el) => {
-          if (isVisible(el)) {
-            el.click();
-            return true;
-          }
-          return false;
-        };
-
-        // Try selectors
-        for (const selector of selectors) {
-          const elements = document.querySelectorAll(selector);
-          for (const el of elements) {
-            if (isVisible(el)) {
-              // If it's a generic button/a, check text
-              if (
-                el.tagName === "BUTTON" ||
-                el.getAttribute("role") === "button"
-              ) {
-                const text = el.innerText || el.textContent;
-                if (
-                  patterns.some((p) => new RegExp(p.source, p.flags).test(text))
-                ) {
-                  el.click();
-                }
-              } else {
-                el.click();
-              }
-            }
-          }
-        }
-      },
-      closeSelectors,
-      closeTextPatterns.map((p) => ({ source: p.source, flags: p.flags })),
-    );
-
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  } catch (e) {
-    console.warn("Modal clearing warning:", e.message);
-  }
-}
-
-async function startPersistentModalObserver(page) {
-  console.log("Starting persistent modal observer...");
-  try {
     await page.evaluate(() => {
-      const closeSelectors = [
-        '[aria-label*="close" i]',
-        '[class*="close" i]',
-        '[id*="close" i]',
-        ".modal-close",
-        ".close-button",
-        ".close-icon",
-      ];
-      const closeTextPatterns = [
+      const isVisible = (el) => {
+        const style = window.getComputedStyle(el);
+        return (
+          style &&
+          style.display !== "none" &&
+          style.visibility !== "hidden" &&
+          el.offsetWidth > 0 &&
+          parseFloat(style.opacity) > 0.1
+        );
+      };
+
+      const closePatterns = [
         /close/i,
         /got it/i,
         /accept/i,
@@ -120,8 +41,106 @@ async function startPersistentModalObserver(page) {
         /consent/i,
         /i agree/i,
         /accept all/i,
+        /dismiss/i,
+        /decline/i,
+        /reject/i,
+        /skip/i,
       ];
 
+      const closeSelectors = [
+        '[aria-label*="close" i]',
+        '[class*="close" i]',
+        '[id*="close" i]',
+        ".modal-close",
+        ".close-button",
+        ".close-icon",
+        "button.absolute.top-2.right-2",
+        "button.absolute.top-4.right-4",
+        '[class*="absolute"][class*="top-"][class*="right-"]',
+        '[class*="fixed"][class*="top-"][class*="right-"]',
+      ];
+
+      // helper to find potential 'X' icons in SVGs
+      const isXIcon = (svg) => {
+        const paths = svg.querySelectorAll("path");
+        for (const p of paths) {
+          const d = p.getAttribute("d") || "";
+          // look for common X path markers like M...L... (linear moves)
+          if (d.length > 10 && (d.includes("L") || d.includes("C")))
+            return true;
+        }
+        return false;
+      };
+
+      // 2. Clear known close selectors
+      for (const selector of closeSelectors) {
+        document.querySelectorAll(selector).forEach((el) => {
+          if (isVisible(el)) el.click();
+        });
+      }
+
+      // 3. Clear text-based buttons
+      document
+        .querySelectorAll('button, a[role="button"], span[role="button"]')
+        .forEach((btn) => {
+          if (isVisible(btn)) {
+            const text = (
+              btn.innerText ||
+              btn.textContent ||
+              btn.getAttribute("aria-label") ||
+              ""
+            ).trim();
+            if (closePatterns.some((p) => p.test(text))) {
+              btn.click();
+            } else if (
+              btn.querySelector("svg") &&
+              isXIcon(btn.querySelector("svg"))
+            ) {
+              btn.click();
+            }
+          }
+        });
+
+      // 4. Force clear scroll locks
+      document.body.style.overflow = "auto";
+      document.documentElement.style.overflow = "auto";
+      document.body.style.setProperty("overflow", "auto", "important");
+      document.documentElement.style.setProperty(
+        "overflow",
+        "auto",
+        "important",
+      );
+
+      // 5. Click high z-index backdrops if they are large and dark
+      document.querySelectorAll("*").forEach((el) => {
+        const style = window.getComputedStyle(el);
+        if (
+          style.position === "fixed" &&
+          parseInt(style.zIndex) > 100 &&
+          isVisible(el)
+        ) {
+          // if it covers most of the screen, it might be a backdrop
+          if (
+            el.offsetWidth > window.innerWidth * 0.8 &&
+            el.offsetHeight > window.innerHeight * 0.8
+          ) {
+            // clicking backdrop often closes modals
+            el.click();
+          }
+        }
+      });
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 800));
+  } catch (e) {
+    console.warn("Modal clearing warning:", e.message);
+  }
+}
+
+async function startPersistentModalObserver(page) {
+  console.log("Starting persistent modal observer (v2.0)...");
+  try {
+    await page.evaluate(() => {
       const isVisible = (el) => {
         const style = window.getComputedStyle(el);
         return (
@@ -133,30 +152,42 @@ async function startPersistentModalObserver(page) {
       };
 
       const checkAndClose = () => {
-        // Try simple selectors
-        for (const selector of closeSelectors) {
-          const elements = document.querySelectorAll(selector);
-          for (const el of elements) {
+        const closePatterns = [
+          /close/i,
+          /got it/i,
+          /accept/i,
+          /dismiss/i,
+          /agree/i,
+          /allow/i,
+          /ok/i,
+          /i agree/i,
+          /accept all/i,
+        ];
+
+        // click common close buttons
+        document
+          .querySelectorAll(
+            '[aria-label*="close" i], .modal-close, .close-button, button.absolute.top-2.right-2',
+          )
+          .forEach((el) => {
             if (isVisible(el)) el.click();
-          }
-        }
-        // Try text-based buttons
-        const buttons = document.querySelectorAll(
-          'button, a[role="button"], span[role="button"]',
-        );
-        for (const btn of buttons) {
+          });
+
+        // click text buttons
+        document.querySelectorAll('button, a[role="button"]').forEach((btn) => {
           if (isVisible(btn)) {
-            const text = btn.innerText || btn.textContent;
-            if (closeTextPatterns.some((p) => p.test(text))) {
-              btn.click();
-            }
+            const text = (btn.innerText || btn.textContent || "").trim();
+            if (closePatterns.some((p) => p.test(text))) btn.click();
           }
+        });
+
+        // ensure scroll is never locked
+        if (window.getComputedStyle(document.body).overflow === "hidden") {
+          document.body.style.setProperty("overflow", "auto", "important");
         }
       };
 
-      // Run every 2 seconds
-      window._modalObserverInterval = setInterval(checkAndClose, 2000);
-      // Also run on mutations
+      window._modalObserverInterval = setInterval(checkAndClose, 3000);
       window._modalObserver = new MutationObserver(checkAndClose);
       window._modalObserver.observe(document.body, {
         childList: true,
