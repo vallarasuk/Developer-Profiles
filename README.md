@@ -1,6 +1,56 @@
 # Visual Dev Showcase
 
-A curated collection of developer portfolios with live scrolling previews.
+A curated collection of developer portfolios with live scrolling previews. This project automatically generates scrolling GIF previews for websites listed in a JSON data file.
+
+## How it Works
+
+The project uses a custom automation script (`bot.js`) that:
+
+1. Loads URLs from `data/portfolios.json`.
+2. Launches a headless browser using **Puppeteer**.
+3. Automatically detects and closes common modals, popups, and cookie consent banners using a persistent **MutationObserver**.
+4. Records the website as it smoothly scrolls down using **Puppeteer Screen Recorder**.
+5. Converts the recording to an optimized GIF using **FFmpeg**.
+6. Updates this README with the latest previews.
+
+## Getting Started
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) (v18+)
+- [FFmpeg](https://ffmpeg.org/) (for GIF conversion)
+
+### Installation
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/vallarasuk/Developers-Profiles.git
+   cd Developers-Profiles
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+### Usage
+
+To generate previews for all portfolios in `data/portfolios.json`:
+
+```bash
+node bot.js
+```
+
+The script will:
+
+- Skip portfolios that already have a GIF in `previews/`.
+- Capture and convert new previews.
+- Update the `README.md` leaderboard.
+
+## Automation
+
+This repository uses **GitHub Actions** (`.github/workflows/update-showcase.yml`) to automatically regenerate previews whenever the `data/portfolios.json` file is updated.
 
 ## Contact & Resources
 
@@ -25,6 +75,6 @@ A curated collection of developer portfolios with live scrolling previews.
 
 ## Portfolios
 
-| Developer | Preview | Portfolio URL |
-| :--- | :---: | :--- |
+| Developer                |                              Preview                               | Portfolio URL                            |
+| :----------------------- | :----------------------------------------------------------------: | :--------------------------------------- |
 | **Vallarasu Kanthasamy** | ![Vallarasu Kanthasamy Preview](previews/vallarasu_kanthasamy.gif) | [vallarasuk.com](https://vallarasuk.com) |

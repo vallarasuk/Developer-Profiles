@@ -18,24 +18,35 @@ async function closeModals(page) {
     await page.keyboard.press("Escape");
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    // Common selectors for close buttons/icons
+    // Common selectors for close buttons/icons and consent buttons
     const closeSelectors = [
       '[aria-label*="close" i]',
       '[class*="close" i]',
       '[id*="close" i]',
-      'button:has-text("Close")',
-      'button:has-text("Got it")',
-      'button:has-text("Accept")',
-      'button:has-text("Dismiss")',
       ".modal-close",
       ".close-button",
       ".close-icon",
+      // Text-based selectors (handled via evaluate for better reliability)
+      "button",
+      'a[role="button"]',
     ];
 
-    for (const selector of closeSelectors) {
-      const handle = await page.$(selector);
-      if (handle) {
-        const isVisible = await handle.evaluate((el) => {
+    const closeTextPatterns = [
+      /close/i,
+      /got it/i,
+      /accept/i,
+      /dismiss/i,
+      /agree/i,
+      /allow/i,
+      /ok/i,
+      /consent/i,
+      /i agree/i,
+      /accept all/i,
+    ];
+
+    await page.evaluate(
+      (selectors, patterns) => {
+        const isVisible = (el) => {
           const style = window.getComputedStyle(el);
           return (
             style &&
@@ -43,16 +54,117 @@ async function closeModals(page) {
             style.visibility !== "hidden" &&
             el.offsetWidth > 0
           );
-        });
-        if (isVisible) {
-          console.log(`Clicking modal close element: ${selector}`);
-          await handle.click().catch(() => {});
-          await new Promise((resolve) => setTimeout(resolve, 500));
+        };
+
+        const tryClick = (el) => {
+          if (isVisible(el)) {
+            el.click();
+            return true;
+          }
+          return false;
+        };
+
+        // Try selectors
+        for (const selector of selectors) {
+          const elements = document.querySelectorAll(selector);
+          for (const el of elements) {
+            if (isVisible(el)) {
+              // If it's a generic button/a, check text
+              if (
+                el.tagName === "BUTTON" ||
+                el.getAttribute("role") === "button"
+              ) {
+                const text = el.innerText || el.textContent;
+                if (
+                  patterns.some((p) => new RegExp(p.source, p.flags).test(text))
+                ) {
+                  el.click();
+                }
+              } else {
+                el.click();
+              }
+            }
+          }
         }
-      }
-    }
+      },
+      closeSelectors,
+      closeTextPatterns.map((p) => ({ source: p.source, flags: p.flags })),
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
   } catch (e) {
     console.warn("Modal clearing warning:", e.message);
+  }
+}
+
+async function startPersistentModalObserver(page) {
+  console.log("Starting persistent modal observer...");
+  try {
+    await page.evaluate(() => {
+      const closeSelectors = [
+        '[aria-label*="close" i]',
+        '[class*="close" i]',
+        '[id*="close" i]',
+        ".modal-close",
+        ".close-button",
+        ".close-icon",
+      ];
+      const closeTextPatterns = [
+        /close/i,
+        /got it/i,
+        /accept/i,
+        /dismiss/i,
+        /agree/i,
+        /allow/i,
+        /ok/i,
+        /consent/i,
+        /i agree/i,
+        /accept all/i,
+      ];
+
+      const isVisible = (el) => {
+        const style = window.getComputedStyle(el);
+        return (
+          style &&
+          style.display !== "none" &&
+          style.visibility !== "hidden" &&
+          el.offsetWidth > 0
+        );
+      };
+
+      const checkAndClose = () => {
+        // Try simple selectors
+        for (const selector of closeSelectors) {
+          const elements = document.querySelectorAll(selector);
+          for (const el of elements) {
+            if (isVisible(el)) el.click();
+          }
+        }
+        // Try text-based buttons
+        const buttons = document.querySelectorAll(
+          'button, a[role="button"], span[role="button"]',
+        );
+        for (const btn of buttons) {
+          if (isVisible(btn)) {
+            const text = btn.innerText || btn.textContent;
+            if (closeTextPatterns.some((p) => p.test(text))) {
+              btn.click();
+            }
+          }
+        }
+      };
+
+      // Run every 2 seconds
+      window._modalObserverInterval = setInterval(checkAndClose, 2000);
+      // Also run on mutations
+      window._modalObserver = new MutationObserver(checkAndClose);
+      window._modalObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+    });
+  } catch (e) {
+    console.warn("Failed to start modal observer:", e.message);
   }
 }
 
@@ -77,9 +189,6 @@ async function recordGif(url, filename) {
   console.log("Waiting for site to stabilize...");
   await new Promise((resolve) => setTimeout(resolve, 5000));
 
-  // Try to close any modals before starting the recording
-  await closeModals(page);
-
   const mp4Path = path.join(PREVIEWS_DIR, `${filename}.mp4`);
   const gifPath = path.join(PREVIEWS_DIR, `${filename}.gif`);
 
@@ -94,8 +203,13 @@ async function recordGif(url, filename) {
     aspectRatio: "16:9",
   });
 
-  console.log(`Recording ${url}...`);
+  console.log(`Starting recording ${url}...`);
   await recorder.start(mp4Path);
+
+  // Try to close any initial modals
+  await closeModals(page);
+  // Start persistent observer for modals that appear later
+  await startPersistentModalObserver(page);
 
   // Smooth scroll - finite loop for 15 seconds to ensure coverage
   page
@@ -109,8 +223,8 @@ async function recordGif(url, filename) {
     })
     .catch(() => {});
 
-  console.log("Recording for 10 seconds...");
-  await new Promise((resolve) => setTimeout(resolve, 10000));
+  console.log("Recording for 12 seconds...");
+  await new Promise((resolve) => setTimeout(resolve, 12000));
 
   try {
     await recorder.stop();
