@@ -1,0 +1,40 @@
+name: Update Showcase
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'data/portfolios.json'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libgbm-dev
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Run showcase bot
+        run: node bot.js
+
+      - name: Commit and push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update showcase previews and README [skip ci]"
+          file_pattern: "previews/*.gif README.md"

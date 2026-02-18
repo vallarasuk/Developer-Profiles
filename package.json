@@ -1,0 +1,17 @@
+{
+  "name": "developers-profiles",
+  "version": "1.0.0",
+  "description": "A curated gallery of stunning developer portfolios with live scrolling previews.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "fs-extra": "^11.3.3",
+    "puppeteer": "^19.0.0",
+    "puppeteer-screen-recorder": "^3.0.6"
+  }
+}
