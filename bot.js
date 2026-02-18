@@ -8,7 +8,7 @@ const PORTFOLIOS_PATH = path.join(__dirname, "data/portfolios.json");
 const PREVIEWS_DIR = path.join(__dirname, "previews");
 const README_PATH = path.join(__dirname, "README.md");
 
-const GIF_WIDTH = 480;
+const GIF_WIDTH = 640;
 const GIF_HEIGHT = 360;
 
 async function recordGif(url, filename) {
@@ -17,7 +17,8 @@ async function recordGif(url, filename) {
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
   const page = await browser.newPage();
-  await page.setViewport({ width: 1280, height: 800 });
+  // Use 1280x720 for native 16:9 aspect ratio
+  await page.setViewport({ width: 1280, height: 720 });
 
   console.log(`Navigating to ${url}...`);
   try {
@@ -40,28 +41,28 @@ async function recordGif(url, filename) {
     ffmpeg_Path: null,
     videoFrame: {
       width: 1280,
-      height: 800,
+      height: 720,
     },
-    aspectRatio: "16:10",
+    aspectRatio: "16:9",
   });
 
   console.log(`Recording ${url}...`);
   await recorder.start(mp4Path);
 
-  // Smooth scroll - finite loop
+  // Smooth scroll - finite loop for 15 seconds to ensure coverage
   page
     .evaluate(async () => {
-      const distance = 40;
+      const distance = 30;
       const delay = 100;
-      for (let i = 0; i < 100; i++) {
+      for (let i = 0; i < 150; i++) {
         window.scrollBy(0, distance);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     })
     .catch(() => {});
 
-  console.log("Recording for 5 seconds...");
-  await new Promise((resolve) => setTimeout(resolve, 5000));
+  console.log("Recording for 10 seconds...");
+  await new Promise((resolve) => setTimeout(resolve, 10000));
 
   try {
     await recorder.stop();
