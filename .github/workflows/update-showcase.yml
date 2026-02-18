@@ -36,5 +36,6 @@ jobs:
       - name: Commit and push changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: update showcase previews and README [skip ci]"
+          commit_message: "style: update portfolios and README"
           file_pattern: "previews/*.gif README.md"
+
