@@ -306,6 +306,10 @@ A curated collection of developer portfolios with live scrolling previews.
 
 This project uses a custom bot to visit portfolios, close modals automatically, and record a high-quality scrolling GIF. The gallery is updated automatically via GitHub Actions.
 
+## 🤝 Connect with Me
+
+[![LinkedIn Badge](https://img.shields.io/badge/LinkedIn-vallarasuk-blue?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.vallarasuk.com)
+
 ## 🌟 Portfolios
 
 | Developer | Preview | Portfolio URL |

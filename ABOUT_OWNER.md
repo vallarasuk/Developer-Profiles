@@ -6,7 +6,7 @@ Hi! I'm **Vallarasu Kanthasamy**, a passionate React Developer and Full-Stack En
 
 - **Portfolio**: [vallarasuk.com](https://vallarasuk.com)
 - **Blog**: [dev.vallarasuk.com](https://dev.vallarasuk.com)
-- **LinkedIn**: [linkedin.com/in/vallarasuk](https://linkedin.vallarasuk.com)
+- **LinkedIn**: [![LinkedIn Badge](https://img.shields.io/badge/LinkedIn-vallarasuk-blue?style=flat&logo=linkedin&logoColor=white)](https://linkedin.vallarasuk.com)
 - **GitHub**: [github.com/vallarasuk](https://github.com/vallarasuk)
 - **Instagram**: [@vallarasuk](http://insta.vallarasuk.com/)
 
