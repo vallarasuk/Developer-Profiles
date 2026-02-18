@@ -11,6 +11,51 @@ const README_PATH = path.join(__dirname, "README.md");
 const GIF_WIDTH = 640;
 const GIF_HEIGHT = 360;
 
+async function closeModals(page) {
+  console.log("Attempting to clear modals...");
+  try {
+    // Press Escape as a first broad attempt
+    await page.keyboard.press("Escape");
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Common selectors for close buttons/icons
+    const closeSelectors = [
+      '[aria-label*="close" i]',
+      '[class*="close" i]',
+      '[id*="close" i]',
+      'button:has-text("Close")',
+      'button:has-text("Got it")',
+      'button:has-text("Accept")',
+      'button:has-text("Dismiss")',
+      ".modal-close",
+      ".close-button",
+      ".close-icon",
+    ];
+
+    for (const selector of closeSelectors) {
+      const handle = await page.$(selector);
+      if (handle) {
+        const isVisible = await handle.evaluate((el) => {
+          const style = window.getComputedStyle(el);
+          return (
+            style &&
+            style.display !== "none" &&
+            style.visibility !== "hidden" &&
+            el.offsetWidth > 0
+          );
+        });
+        if (isVisible) {
+          console.log(`Clicking modal close element: ${selector}`);
+          await handle.click().catch(() => {});
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Modal clearing warning:", e.message);
+  }
+}
+
 async function recordGif(url, filename) {
   const browser = await puppeteer.launch({
     headless: "new",
@@ -31,6 +76,9 @@ async function recordGif(url, filename) {
 
   console.log("Waiting for site to stabilize...");
   await new Promise((resolve) => setTimeout(resolve, 5000));
+
+  // Try to close any modals before starting the recording
+  await closeModals(page);
 
   const mp4Path = path.join(PREVIEWS_DIR, `${filename}.mp4`);
   const gifPath = path.join(PREVIEWS_DIR, `${filename}.gif`);
