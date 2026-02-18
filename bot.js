@@ -199,6 +199,78 @@ async function startPersistentModalObserver(page) {
   }
 }
 
+async function getLinkedInFollowers(browser, url) {
+  console.log(`Fetching LinkedIn followers from ${url}...`);
+  const page = await browser.newPage();
+  try {
+    await page.setUserAgent(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    );
+    await page.setViewport({ width: 1280, height: 720 });
+
+    await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
+    console.log("Waiting for followers content...");
+    await new Promise((resolve) => setTimeout(resolve, 8000));
+
+    // Try to dismiss sign-in modals
+    await page
+      .evaluate(() => {
+        const btns = Array.from(document.querySelectorAll("button"));
+        const dismiss = btns.find((b) =>
+          /dismiss|close/i.test(b.getAttribute("aria-label") || b.innerText),
+        );
+        if (dismiss) dismiss.click();
+      })
+      .catch(() => {});
+
+    let followers = await page.evaluate(() => {
+      const selectors = [
+        ".top-card-layout__first-subline .not-first-middot span",
+        "h3.top-card-layout__first-subline span",
+        ".face-pile__text",
+        ".about-us__followers",
+      ];
+
+      for (const s of selectors) {
+        const el = document.querySelector(s);
+        if (el && el.textContent.toLowerCase().includes("followers")) {
+          const m = el.textContent.match(/([\d,.]+)/);
+          if (m) return m[1];
+        }
+      }
+
+      const all = Array.from(document.querySelectorAll("span, div, li, h3, a"));
+      const found = all.find(
+        (el) =>
+          el.children.length === 0 &&
+          el.textContent.toLowerCase().includes("followers") &&
+          /\d/.test(el.textContent),
+      );
+
+      if (found) {
+        const m = found.textContent.match(/([\d,.]+)/);
+        return m ? m[1] : found.textContent.trim();
+      }
+      return null;
+    });
+
+    if (!followers) {
+      const content = await page.content();
+      const match = content.match(/([\d,]+)\s+followers/i);
+      if (match) followers = match[1];
+    }
+
+    followers = followers ? followers.replace(/,/g, "") : "N/A";
+    console.log(`Found LinkedIn followers: ${followers}`);
+    return followers;
+  } catch (e) {
+    console.warn("Failed to fetch LinkedIn followers:", e.message);
+    return "N/A";
+  } finally {
+    await page.close();
+  }
+}
+
 async function recordGif(url, filename) {
   const browser = await puppeteer.launch({
     headless: "new",
@@ -280,8 +352,10 @@ async function recordGif(url, filename) {
   }
 }
 
-async function updateReadme(portfolios) {
+async function updateReadme(portfolios, stats = {}) {
   portfolios.sort((a, b) => a.name.localeCompare(b.name));
+
+  const linkedinFollowers = stats.linkedinFollowers || "N/A";
 
   let tableRows = portfolios
     .map((p) => {
@@ -308,7 +382,10 @@ This project uses a custom bot to visit portfolios, close modals automatically, 
 
 ## 🤝 Connect with Me
 
-[![LinkedIn Badge](https://img.shields.io/badge/LinkedIn-vallarasuk-blue?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.vallarasuk.com)
+| Platform | Badge | Live Stats |
+| :--- | :--- | :--- |
+| **LinkedIn** | [![LinkedIn Badge](https://img.shields.io/badge/LinkedIn-vallarasuk-blue?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.vallarasuk.com) | ![Followers](https://img.shields.io/badge/Followers-${linkedinFollowers}-blue?style=flat-square) |
+| **GitHub** | [![GitHub](https://img.shields.io/badge/GitHub-vallarasuk-black?style=for-the-badge&logo=github&logoColor=white)](https://github.com/vallarasuk) | ![Followers](https://img.shields.io/github/followers/vallarasuk?style=flat-square&label=Followers) |
 
 ## 🌟 Portfolios
 
@@ -329,6 +406,22 @@ async function main() {
   }
   const portfolios = await fs.readJson(PORTFOLIOS_PATH);
 
+  const browser = await puppeteer.launch({
+    headless: "new",
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
+
+  // 1. Fetch live social stats
+  const stats = {
+    linkedinFollowers: await getLinkedInFollowers(
+      browser,
+      "https://www.linkedin.com/in/vallarasuk/",
+    ),
+  };
+
+  await browser.close();
+
+  // 2. Generate previews
   for (const p of portfolios) {
     const filename = p.name.toLowerCase().replace(/\s+/g, "_");
     const gifPath = path.join(PREVIEWS_DIR, `${filename}.gif`);
@@ -337,7 +430,9 @@ async function main() {
       await recordGif(p.url, filename);
     }
   }
-  await updateReadme(portfolios);
+
+  // 3. Update README
+  await updateReadme(portfolios, stats);
 }
 
 main().catch((err) => {
